@@ -45,29 +45,6 @@
   </header>
 
   <main class="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
-    <!-- Helpers + DATA -->
-    <script>
-      // Sized image helper (thumbs + lightbox from the same Drive file ID)
-      const driveUrlSized = (id, w) => `https://lh3.googleusercontent.com/d/${id}=w${w}`;
-      // Original download link (uses same ID)
-      const driveDownloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
-
-      // Use only driveId now. Download button is shown for every Drive image.
-      const artworks = [
-        { type: 'image', driveId: '1Tpi8bcAFylpFEyfMTBiaYIM-Y8OT1ozy', title: "Gander’spatch XElectric Armchair", alt: 'Album cover' },
-        { type: 'image', driveId: '1vCjOO0ywYTuEX63CnEl3tXzZ0_P_q6qL', title: "ect", alt: 'Album cover' },
-        { type: 'image', driveId: '11vG5yWv666muidxNvbUvT4VEA2e7Rqk5', title: "ect", alt: 'Album cover' },
-        { type: 'image', driveId: '1fzXNwzKak2D8niqxecj1OXm63jgHcbvB', title: "ect", alt: 'Album cover' },
-
-        /* --- SAMPLE YOUTUBE ITEMS (replace VIDEO_ID_HERE) --- */
-        { type: 'youtube', id: 'YSsy2-aMW14', title: 'Robopera the dubstep opera' },
-        // { type: 'youtube', id: 'VIDEO_ID_HERE', title: 'Studio Walkthrough' },
-
-        /* --- OPTIONAL: tiny self-hosted MP4 loop --- */
-        // { type: 'video', src: 'assets/loop1.mp4', title: 'Short Loop' },
-      ];
-    </script>
-
     <div id="gallery" class="masonry"></div>
 
     <!-- Lightbox Modal -->
@@ -81,9 +58,24 @@
     <p>© <span id="year"></span> James Fuller. All rights reserved.</p>
   </footer>
 
-  <!-- RENDER -->
+  <!-- LOGIC -->
   <script>
+    // -----------------------------
+    // CONFIG (payments-ready switch)
+    // -----------------------------
+    // If you later want to disable free downloads site-wide, set PAYWALL = true.
+    const PAYWALL = false;
+
+    // -----------------------------
+    // Helpers (Drive & rendering)
+    // -----------------------------
+    const driveUrlSized = (id, w) => `https://lh3.googleusercontent.com/d/${id}=w${w}`;
+    const driveDownloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
+
     const gallery = document.getElementById('gallery');
+    const lightbox = document.getElementById('lightbox');
+    const lightboxContent = document.getElementById('lightboxContent');
+    const closeBtn = document.getElementById('closeLightbox');
 
     function cardWrapper(inner) {
       return `
@@ -95,38 +87,37 @@
 </div>`;
     }
 
-    function imageCard(item) {
-      const hasDrive = Boolean(item.driveId);
-      const id = item.driveId;
+    function actionButtonHtml(id, item) {
+      if (item.purchaseUrl) {
+        return `<a href="${item.purchaseUrl}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Buy HD Download</a>`;
+      }
+      if (!PAYWALL) {
+        return `<a href="${driveDownloadUrl(id)}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>`;
+      }
+      return '';
+    }
 
-      // Responsive thumbnails in grid
-      const src = hasDrive ? driveUrlSized(id, 800) : item.src;
-      const srcset = hasDrive
-        ? [
-            `${driveUrlSized(id, 800)} 800w`,
-            `${driveUrlSized(id, 1200)} 1200w`,
-            `${driveUrlSized(id, 1600)} 1600w`
-          ].join(', ')
-        : '';
+    function imageCard(item) {
+      const id = item.driveId;
+      const src = driveUrlSized(id, 800);
+      const srcset = [
+        `${driveUrlSized(id, 800)} 800w`,
+        `${driveUrlSized(id, 1200)} 1200w`,
+        `${driveUrlSized(id, 1600)} 1600w`
+      ].join(', ');
       const sizes = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw';
 
-      // Always show download for Drive images
-      const downloadBtn = hasDrive
-        ? `<a href="${driveDownloadUrl(id)}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>`
-        : '';
-
+      const btn = actionButtonHtml(id, item);
       const caption = item.title
-        ? `<div class="p-3 text-sm text-white/80 flex items-center">${item.title}${downloadBtn}</div>`
-        : (downloadBtn ? `<div class="p-3">${downloadBtn}</div>` : '');
-
-      // Store ID for lightbox; fallback to src if local
-      const lbData = hasDrive ? `data-id="${id}"` : `data-src="${item.src}"`;
+        ? `<div class="p-3 text-sm text-white/80 flex items-center">${item.title}${btn}</div>`
+        : (btn ? `<div class="p-3">${btn}</div>` : '');
 
       return cardWrapper(`
-        <button class="block w-full text-left" data-lightbox="image" ${lbData} data-title="${item.title||''}">
+        <button class="block w-full text-left" data-lightbox="image" data-id="${id}" data-title="${item.title||''}">
           <img
             src="${src}"
-            ${hasDrive ? `srcset="${srcset}" sizes="${sizes}"` : ''}
+            srcset="${srcset}"
+            sizes="${sizes}"
             alt="${item.alt||item.title||'Artwork'}"
             loading="lazy"
             class="w-full h-auto block group-hover:opacity-90 transition" />
@@ -159,20 +150,118 @@
       `);
     }
 
-    // Build gallery
-    const frags = artworks.map(item => {
-      if (item.type === 'image') return imageCard(item);
-      if (item.type === 'youtube') return youtubeCard(item);
-      if (item.type === 'video') return mp4Card(item);
-      return '';
-    }).join('');
-    gallery.innerHTML = frags;
+    function matchesFilter(filter, type) {
+      if (filter === 'all') return true;
+      if (filter === 'video') return type === 'video' || type === 'youtube';
+      return type === filter;
+    }
+
+    // -----------------------------
+    // Manifest loaders (JSON/CSV/TXT)
+    // -----------------------------
+    async function loadManifest() {
+      // 1) Try JSON (best)
+      const jsonItems = await loadJSON('data/artworks.json').catch(() => null);
+      if (jsonItems) return jsonItems;
+
+      // 2) Try CSV (Colab export)
+      const csvText = await fetchText('data/drive_ids.csv').catch(() => null);
+      if (csvText) return csvToArtworks(csvText);
+
+      // 3) Try simple IDs text (one ID per line)
+      const idsText = await fetchText('data/ids.txt').catch(() => null);
+      if (idsText) return idsToArtworks(idsText);
+
+      return [];
+    }
+
+    async function loadJSON(path) {
+      const res = await fetch(path, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const images = Array.isArray(data) ? data : (data.images || []);
+      const videos = Array.isArray(data) ? [] : (data.videos || []);
+
+      const prettify = (s='') => s.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+
+      const items = images.map(it => ({
+        type: 'image',
+        driveId: it.driveId || it.id,
+        title: it.title || prettify(it.name || ''),
+        alt: it.alt || it.title || '',
+        purchaseUrl: it.purchaseUrl || null
+      }));
+
+      videos.forEach(v => {
+        if (v.youtubeId || v.id) {
+          items.push({ type: 'youtube', id: v.youtubeId || v.id, title: v.title || '' });
+        }
+      });
+
+      return items;
+    }
+
+    async function fetchText(path) {
+      const res = await fetch(path, { cache: 'no-store' });
+      if (!res.ok) throw new Error('not found');
+      return res.text();
+    }
+
+    function csvToArtworks(text) {
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length < 2) return [];
+      const header = lines.shift().split(',');
+      const nameIdx = header.findIndex(h => /name/i.test(h));
+      const idIdx = header.findIndex(h => /^id$/i.test(h));
+      const purchaseIdx = header.findIndex(h => /purchase/i.test(h)); // optional column
+
+      const prettify = (s='') => s.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+
+      const items = [];
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parts = line.split(',');
+        const id = (parts[idIdx] || '').trim();
+        const name = (parts[nameIdx] || '').trim();
+        const purchase = purchaseIdx >= 0 ? (parts[purchaseIdx] || '').trim() : '';
+        if (!id) continue;
+        items.push({
+          type: 'image',
+          driveId: id,
+          title: prettify(name) || `Artwork ${items.length + 1}`,
+          alt: prettify(name),
+          purchaseUrl: purchase || null
+        });
+      }
+      return items;
+    }
+
+    function idsToArtworks(text) {
+      const ids = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      return ids.map((id, i) => ({
+        type: 'image',
+        driveId: id,
+        title: `Artwork ${i + 1}`,
+        alt: `Artwork ${i + 1}`
+      }));
+    }
+
+    // -----------------------------
+    // Render flow
+    // -----------------------------
+    let artworks = [];
+
+    function renderGallery() {
+      const frags = artworks.map(item => {
+        if (item.type === 'image') return imageCard(item);
+        if (item.type === 'youtube') return youtubeCard(item);
+        if (item.type === 'video') return mp4Card(item);
+        return '';
+      }).join('');
+      gallery.innerHTML = frags;
+    }
 
     // Lightbox behavior
-    const lightbox = document.getElementById('lightbox');
-    const lightboxContent = document.getElementById('lightboxContent');
-    const closeBtn = document.getElementById('closeLightbox');
-
     gallery.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-lightbox]');
       if (!btn) return;
@@ -182,15 +271,8 @@
       if (kind === 'image') {
         const id = btn.getAttribute('data-id');
         const title = btn.getAttribute('data-title') || '';
-
-        if (id) {
-          // Larger image inside modal
-          const large = driveUrlSized(id, 2000);
-          lightboxContent.innerHTML = `<img src="${large}" alt="${title}" class="w-full h-auto rounded-xl" />`;
-        } else {
-          const src = btn.getAttribute('data-src');
-          lightboxContent.innerHTML = `<img src="${src}" alt="${title}" class="w-full h-auto rounded-xl" />`;
-        }
+        const large = driveUrlSized(id, 2000);
+        lightboxContent.innerHTML = `<img src="${large}" alt="${title}" class="w-full h-auto rounded-xl" />`;
       }
 
       if (kind === 'youtube') {
@@ -216,18 +298,22 @@
       lightbox.classList.add('flex');
     });
 
+    closeBtn.addEventListener('click', () => {
+      lightbox.classList.add('hidden');
+      lightbox.classList.remove('flex');
+      lightboxContent.innerHTML = '';
+    });
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) closeBtn.click();
+    });
+
     // Filters (Videos = youtube or video)
-    function matchesFilter(filter, type) {
-      if (filter === 'all') return true;
-      if (filter === 'video') return type === 'video' || type === 'youtube';
-      return type === filter;
-    }
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const filter = btn.dataset.filter;
         const children = Array.from(gallery.children);
         children.forEach((el, i) => {
-          const t = artworks[i].type;
+          const t = artworks[i]?.type;
           el.style.display = matchesFilter(filter, t) ? '' : 'none';
         });
       });
@@ -235,6 +321,18 @@
 
     // Footer year
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Kick off: load manifest then render
+    (async () => {
+      try {
+        artworks = await loadManifest();
+        renderGallery();
+      } catch (e) {
+        console.error('Failed to load manifest:', e);
+        artworks = [];
+        renderGallery();
+      }
+    })();
   </script>
 </body>
 </html>
