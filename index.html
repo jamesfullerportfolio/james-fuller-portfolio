@@ -47,10 +47,19 @@
   <main class="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
     <div id="gallery" class="masonry"></div>
 
-    <!-- Lightbox Modal -->
-    <div id="lightbox" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
-      <button id="closeLightbox" class="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20">Close</button>
-      <div id="lightboxContent" class="w-full max-w-5xl"></div>
+    <!-- Pager -->
+    <div id="pager" class="mt-8 text-center">
+      <button id="loadMore" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">Load more</button>
+    </div>
+
+    <!-- Lightbox (scrollable overlay) -->
+    <div id="lightbox" class="fixed inset-0 bg-black/80 hidden overflow-y-auto p-4 z-50">
+      <div class="w-full max-w-5xl mx-auto">
+        <div class="sticky top-0 flex justify-end">
+          <button id="closeLightbox" class="mt-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20">Close</button>
+        </div>
+        <div id="lightboxContent" class="py-6"></div>
+      </div>
     </div>
   </main>
 
@@ -60,19 +69,16 @@
 
   <!-- LOGIC -->
   <script>
-    // -----------------------------
-    // CONFIG (payments-ready switch)
-    // -----------------------------
-    // If you later want to disable free downloads site-wide, set PAYWALL = true.
-    const PAYWALL = false;
+    // --- Config ---
+    const PAYWALL = false;          // flip to true later if you want to disable free downloads
+    const PAGE_SIZE = 12;           // show N items at a time
 
-    // -----------------------------
-    // Helpers (Drive & rendering)
-    // -----------------------------
+    // --- Helpers (Drive & rendering) ---
     const driveUrlSized = (id, w) => `https://lh3.googleusercontent.com/d/${id}=w${w}`;
     const driveDownloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
 
     const gallery = document.getElementById('gallery');
+    const loadMoreBtn = document.getElementById('loadMore');
     const lightbox = document.getElementById('lightbox');
     const lightboxContent = document.getElementById('lightboxContent');
     const closeBtn = document.getElementById('closeLightbox');
@@ -156,19 +162,14 @@
       return type === filter;
     }
 
-    // -----------------------------
-    // Manifest loaders (JSON/CSV/TXT)
-    // -----------------------------
+    // --- Manifest loaders (JSON/CSV/TXT) ---
     async function loadManifest() {
-      // 1) Try JSON (best)
       const jsonItems = await loadJSON('data/artworks.json').catch(() => null);
       if (jsonItems) return jsonItems;
 
-      // 2) Try CSV (Colab export)
       const csvText = await fetchText('data/drive_ids.csv').catch(() => null);
       if (csvText) return csvToArtworks(csvText);
 
-      // 3) Try simple IDs text (one ID per line)
       const idsText = await fetchText('data/ids.txt').catch(() => null);
       if (idsText) return idsToArtworks(idsText);
 
@@ -181,7 +182,6 @@
       const data = await res.json();
       const images = Array.isArray(data) ? data : (data.images || []);
       const videos = Array.isArray(data) ? [] : (data.videos || []);
-
       const prettify = (s='') => s.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
 
       const items = images.map(it => ({
@@ -191,13 +191,9 @@
         alt: it.alt || it.title || '',
         purchaseUrl: it.purchaseUrl || null
       }));
-
       videos.forEach(v => {
-        if (v.youtubeId || v.id) {
-          items.push({ type: 'youtube', id: v.youtubeId || v.id, title: v.title || '' });
-        }
+        if (v.youtubeId || v.id) items.push({ type: 'youtube', id: v.youtubeId || v.id, title: v.title || '' });
       });
-
       return items;
     }
 
@@ -213,8 +209,7 @@
       const header = lines.shift().split(',');
       const nameIdx = header.findIndex(h => /name/i.test(h));
       const idIdx = header.findIndex(h => /^id$/i.test(h));
-      const purchaseIdx = header.findIndex(h => /purchase/i.test(h)); // optional column
-
+      const purchaseIdx = header.findIndex(h => /purchase/i.test(h));
       const prettify = (s='') => s.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
 
       const items = [];
@@ -246,22 +241,37 @@
       }));
     }
 
-    // -----------------------------
-    // Render flow
-    // -----------------------------
-    let artworks = [];
+    // --- Pagination + filters ---
+    let master = [];   // all items loaded
+    let current = [];  // filtered items
+    let offset = 0;    // how many rendered so far
 
-    function renderGallery() {
-      const frags = artworks.map(item => {
+    function renderBatch(list) {
+      const slice = list.slice(offset, offset + PAGE_SIZE);
+      const frags = slice.map(item => {
         if (item.type === 'image') return imageCard(item);
         if (item.type === 'youtube') return youtubeCard(item);
         if (item.type === 'video') return mp4Card(item);
         return '';
       }).join('');
-      gallery.innerHTML = frags;
+      gallery.insertAdjacentHTML('beforeend', frags);
+      offset += slice.length;
+      loadMoreBtn.style.display = offset < list.length ? '' : 'none';
     }
 
-    // Lightbox behavior
+    function applyFilter(filter) {
+      current = master.filter(x => matchesFilter(filter, x.type));
+      gallery.innerHTML = '';
+      offset = 0;
+      renderBatch(current);
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
+    });
+    loadMoreBtn.addEventListener('click', () => renderBatch(current));
+
+    // --- Lightbox behavior (scrollable) ---
     gallery.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-lightbox]');
       if (!btn) return;
@@ -274,7 +284,6 @@
         const large = driveUrlSized(id, 2000);
         lightboxContent.innerHTML = `<img src="${large}" alt="${title}" class="w-full h-auto rounded-xl" />`;
       }
-
       if (kind === 'youtube') {
         const vid = btn.getAttribute('data-id');
         const title = btn.getAttribute('data-title') || '';
@@ -287,50 +296,35 @@
               allowfullscreen></iframe>
           </div>`;
       }
-
       if (kind === 'video') {
         const src = btn.getAttribute('data-src');
         const title = btn.getAttribute('data-title') || '';
         lightboxContent.innerHTML = `<video src="${src}" class="w-full h-auto rounded-xl" controls autoplay playsinline></video>`;
       }
 
-      lightbox.classList.remove('hidden');
-      lightbox.classList.add('flex');
+      lightbox.classList.remove('hidden'); // overlay is scrollable; no need to add 'flex'
     });
 
     closeBtn.addEventListener('click', () => {
       lightbox.classList.add('hidden');
-      lightbox.classList.remove('flex');
       lightboxContent.innerHTML = '';
     });
     lightbox.addEventListener('click', (e) => {
       if (e.target === lightbox) closeBtn.click();
     });
 
-    // Filters (Videos = youtube or video)
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const filter = btn.dataset.filter;
-        const children = Array.from(gallery.children);
-        children.forEach((el, i) => {
-          const t = artworks[i]?.type;
-          el.style.display = matchesFilter(filter, t) ? '' : 'none';
-        });
-      });
-    });
-
     // Footer year
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    // Kick off: load manifest then render
+    // Kick off: load manifest, then render first page
     (async () => {
       try {
-        artworks = await loadManifest();
-        renderGallery();
+        master = await loadManifest();
+        applyFilter('all');
       } catch (e) {
         console.error('Failed to load manifest:', e);
-        artworks = [];
-        renderGallery();
+        master = [];
+        applyFilter('all');
       }
     })();
   </script>
