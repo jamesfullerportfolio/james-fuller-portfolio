@@ -14,20 +14,20 @@
   <!-- Tailwind (CDN for now; swap to compiled styles.css later) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Favicon (prevents 404) -->
+  <!-- Favicon -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎨</text></svg>">
 
   <style>
     :root { --bg: #0b0b0c; --fg: #f5f7fa; }
     html { background: var(--bg); color: var(--fg); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    .masonry { column-count: 1; column-gap: 1rem; }
-    @media (min-width: 640px) { .masonry { column-count: 2; } }
-    @media (min-width: 1024px) { .masonry { column-count: 3; } }
-    .brick { break-inside: avoid; margin-bottom: 1rem; }
+    /* Carousel sizing */
+    #carouselStage { min-height: 60vh; }
+    .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); }
+    .nav-btn[disabled] { opacity: 0.35; pointer-events: none; }
   </style>
 </head>
 <body class="bg-[var(--bg)] text-[var(--fg)] selection:bg-white/20">
-  <header class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+  <header class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
     <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
       <div>
         <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">James Fuller</h1>
@@ -44,141 +44,64 @@
     </div>
   </header>
 
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
-    <div id="gallery" class="masonry"></div>
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 pb-20">
+    <!-- Carousel -->
+    <section class="relative">
+      <div id="carouselStage" class="relative rounded-2xl overflow-hidden shadow-2xl shadow-black/30 bg-white/5 border border-white/10">
+        <!-- Prev / Next -->
+        <button id="prevBtn" class="nav-btn left-0 px-3 py-2 rounded-r-xl bg-white/10 hover:bg-white/20">‹</button>
+        <button id="nextBtn" class="nav-btn right-0 px-3 py-2 rounded-l-xl bg-white/10 hover:bg-white/20">›</button>
 
-    <!-- Pager -->
-    <div id="pager" class="mt-8 text-center">
-      <button id="loadMore" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">Load more</button>
-    </div>
-
-    <!-- Lightbox (scrollable overlay) -->
-    <div id="lightbox" class="fixed inset-0 bg-black/80 hidden overflow-y-auto p-4 z-50">
-      <div class="w-full max-w-5xl mx-auto">
-        <div class="sticky top-0 flex justify-end">
-          <button id="closeLightbox" class="mt-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20">Close</button>
+        <!-- Slide container -->
+        <div id="slideHost" class="w-full h-full">
+          <!-- injected slide goes here -->
         </div>
-        <div id="lightboxContent" class="py-6"></div>
+
+        <!-- Top bar (title + actions) -->
+        <div class="absolute left-0 right-0 top-0 flex items-center justify-between px-3 py-2 text-sm">
+          <div id="slideMeta" class="text-white/70"></div>
+          <div id="slideActions" class="text-white/80"></div>
+        </div>
       </div>
-    </div>
+
+      <!-- Dots -->
+      <div id="dots" class="flex flex-wrap gap-1.5 justify-center mt-4"></div>
+    </section>
   </main>
 
   <footer class="max-w-6xl mx-auto px-4 sm:px-6 pb-10 text-xs text-white/50">
     <p>© <span id="year"></span> James Fuller. All rights reserved.</p>
   </footer>
 
-  <!-- LOGIC -->
+  <!-- SCRIPT -->
   <script>
-    // --- Config ---
-    const PAYWALL = false;          // flip to true later if you want to disable free downloads
-    const PAGE_SIZE = 12;           // show N items at a time
+    // ---- Config ----
+    const PAYWALL = false;       // later, set true to remove free download buttons
+    const LOOP   = false;        // set true to wrap at ends
+    const SHOW_DOTS = true;      // set false to hide dots if you have tons of items
 
-    // --- Helpers (Drive & rendering) ---
+    // ---- Helpers ----
     const driveUrlSized = (id, w) => `https://lh3.googleusercontent.com/d/${id}=w${w}`;
     const driveDownloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
 
-    const gallery = document.getElementById('gallery');
-    const loadMoreBtn = document.getElementById('loadMore');
-    const lightbox = document.getElementById('lightbox');
-    const lightboxContent = document.getElementById('lightboxContent');
-    const closeBtn = document.getElementById('closeLightbox');
+    // DOM
+    const slideHost = document.getElementById('slideHost');
+    const prevBtn   = document.getElementById('prevBtn');
+    const nextBtn   = document.getElementById('nextBtn');
+    const metaEl    = document.getElementById('slideMeta');
+    const actionsEl = document.getElementById('slideActions');
+    const dotsEl    = document.getElementById('dots');
 
-    function cardWrapper(inner) {
-      return `
-<div class="brick">
-  <div class="group relative rounded-2xl overflow-hidden shadow-2xl shadow-black/30 bg-white/5 border border-white/10">
-    ${inner}
-    <div class="absolute inset-0 ring-1 ring-white/10 pointer-events-none rounded-2xl"></div>
-  </div>
-</div>`;
-    }
+    // State
+    let master = [];    // all items from JSON
+    let current = [];   // filtered list
+    let idx = 0;        // current slide index
+    let touchStartX = null;
 
-    function actionButtonHtml(id, item) {
-      if (item.purchaseUrl) {
-        return `<a href="${item.purchaseUrl}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Buy HD Download</a>`;
-      }
-      if (!PAYWALL) {
-        return `<a href="${driveDownloadUrl(id)}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>`;
-      }
-      return '';
-    }
-
-    function imageCard(item) {
-      const id = item.driveId;
-      const src = driveUrlSized(id, 800);
-      const srcset = [
-        `${driveUrlSized(id, 800)} 800w`,
-        `${driveUrlSized(id, 1200)} 1200w`,
-        `${driveUrlSized(id, 1600)} 1600w`
-      ].join(', ');
-      const sizes = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw';
-
-      const btn = actionButtonHtml(id, item);
-      const caption = item.title
-        ? `<div class="p-3 text-sm text-white/80 flex items-center">${item.title}${btn}</div>`
-        : (btn ? `<div class="p-3">${btn}</div>` : '');
-
-      return cardWrapper(`
-        <button class="block w-full text-left" data-lightbox="image" data-id="${id}" data-title="${item.title||''}">
-          <img
-            src="${src}"
-            srcset="${srcset}"
-            sizes="${sizes}"
-            alt="${item.alt||item.title||'Artwork'}"
-            loading="lazy"
-            class="w-full h-auto block group-hover:opacity-90 transition" />
-        </button>
-        ${caption}
-      `);
-    }
-
-    function youtubeCard(item) {
-      const thumb = `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`;
-      const caption = item.title ? `<div class="p-3 text-sm text-white/80">${item.title}</div>` : '';
-      return cardWrapper(`
-        <button class="block w-full text-left" data-lightbox="youtube" data-id="${item.id}" data-title="${item.title||''}">
-          <img src="${thumb}" alt="${item.title||'Video'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
-          <span class="absolute inset-0 grid place-items-center">
-            <span class="inline-flex items-center justify-center rounded-full w-14 h-14 bg-black/60 backdrop-blur">▶</span>
-          </span>
-        </button>
-        ${caption}
-      `);
-    }
-
-    function mp4Card(item) {
-      const caption = item.title ? `<div class="p-3 text-sm text-white/80">${item.title}</div>` : '';
-      return cardWrapper(`
-        <button class="block w-full text-left" data-lightbox="video" data-src="${item.src}" data-title="${item.title||''}">
-          <video src="${item.src}#t=0.1" class="w-full h-auto block" muted playsinline></video>
-        </button>
-        ${caption}
-      `);
-    }
-
-    function matchesFilter(filter, type) {
-      if (filter === 'all') return true;
-      if (filter === 'video') return type === 'video' || type === 'youtube';
-      return type === filter;
-    }
-
-    // --- Manifest loaders (JSON/CSV/TXT) ---
-    async function loadManifest() {
-      const jsonItems = await loadJSON('data/artworks.json').catch(() => null);
-      if (jsonItems) return jsonItems;
-
-      const csvText = await fetchText('data/drive_ids.csv').catch(() => null);
-      if (csvText) return csvToArtworks(csvText);
-
-      const idsText = await fetchText('data/ids.txt').catch(() => null);
-      if (idsText) return idsToArtworks(idsText);
-
-      return [];
-    }
-
+    // Loader (JSON only, since you said you'll stick with it)
     async function loadJSON(path) {
       const res = await fetch(path, { cache: 'no-store' });
-      if (!res.ok) return null;
+      if (!res.ok) throw new Error('artworks.json not found');
       const data = await res.json();
       const images = Array.isArray(data) ? data : (data.images || []);
       const videos = Array.isArray(data) ? [] : (data.videos || []);
@@ -197,134 +120,162 @@
       return items;
     }
 
-    async function fetchText(path) {
-      const res = await fetch(path, { cache: 'no-store' });
-      if (!res.ok) throw new Error('not found');
-      return res.text();
-    }
+    // Build a single slide only (keeps memory/network tiny)
+    function slideHTML(item) {
+      if (!item) return '';
+      if (item.type === 'image') {
+        const id = item.driveId;
+        const large = driveUrlSized(id, 2000);
+        const srcset = [
+          `${driveUrlSized(id, 1000)} 1000w`,
+          `${driveUrlSized(id, 1500)} 1500w`,
+          `${driveUrlSized(id, 2000)} 2000w`
+        ].join(', ');
+        const sizes = '(max-width: 1024px) 100vw, 1000px';
 
-    function csvToArtworks(text) {
-      const lines = text.trim().split(/\r?\n/);
-      if (lines.length < 2) return [];
-      const header = lines.shift().split(',');
-      const nameIdx = header.findIndex(h => /name/i.test(h));
-      const idIdx = header.findIndex(h => /^id$/i.test(h));
-      const purchaseIdx = header.findIndex(h => /purchase/i.test(h));
-      const prettify = (s='') => s.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+        // Actions
+        const buyBtn = item.purchaseUrl ? `<a href="${item.purchaseUrl}" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Buy HD Download</a>` : '';
+        const dlBtn  = (!PAYWALL && !item.purchaseUrl) ? `<a href="${driveDownloadUrl(id)}" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>` : '';
+        const openBtn = `<a href="${large}" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Open in new tab</a>`;
+        actionsEl.innerHTML = openBtn + buyBtn + dlBtn;
 
-      const items = [];
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const parts = line.split(',');
-        const id = (parts[idIdx] || '').trim();
-        const name = (parts[nameIdx] || '').trim();
-        const purchase = purchaseIdx >= 0 ? (parts[purchaseIdx] || '').trim() : '';
-        if (!id) continue;
-        items.push({
-          type: 'image',
-          driveId: id,
-          title: prettify(name) || `Artwork ${items.length + 1}`,
-          alt: prettify(name),
-          purchaseUrl: purchase || null
-        });
+        return `
+          <div class="w-full h-full grid place-items-center p-4">
+            <img src="${large}" srcset="${srcset}" sizes="${sizes}" alt="${item.alt || item.title || 'Artwork'}" class="max-h-[80vh] w-auto h-auto rounded-xl shadow-2xl" loading="eager" />
+          </div>
+        `;
       }
-      return items;
+
+      if (item.type === 'youtube') {
+        actionsEl.innerHTML = '';
+        return `
+          <div class="w-full h-full p-4">
+            <div class="relative w-full" style="padding-top: 56.25%">
+              <iframe class="absolute inset-0 w-full h-full rounded-xl"
+                src="https://www.youtube.com/embed/${item.id}?autoplay=1"
+                title="${item.title||''}"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen></iframe>
+            </div>
+          </div>
+        `;
+      }
+
+      if (item.type === 'video') {
+        actionsEl.innerHTML = '';
+        return `
+          <div class="w-full h-full grid place-items-center p-4">
+            <video src="${item.src}" class="max-h-[80vh] w-auto h-auto rounded-xl shadow-2xl" controls autoplay playsinline></video>
+          </div>
+        `;
+      }
+
+      return '';
     }
 
-    function idsToArtworks(text) {
-      const ids = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      return ids.map((id, i) => ({
-        type: 'image',
-        driveId: id,
-        title: `Artwork ${i + 1}`,
-        alt: `Artwork ${i + 1}`
-      }));
+    function updateMeta() {
+      metaEl.textContent = `${idx + 1} / ${current.length}` + (current[idx]?.title ? ` — ${current[idx].title}` : '');
     }
 
-    // --- Pagination + filters ---
-    let master = [];   // all items loaded
-    let current = [];  // filtered items
-    let offset = 0;    // how many rendered so far
+    function syncButtons() {
+      if (LOOP) { prevBtn.disabled = nextBtn.disabled = false; return; }
+      prevBtn.disabled = (idx <= 0);
+      nextBtn.disabled = (idx >= current.length - 1);
+    }
 
-    function renderBatch(list) {
-      const slice = list.slice(offset, offset + PAGE_SIZE);
-      const frags = slice.map(item => {
-        if (item.type === 'image') return imageCard(item);
-        if (item.type === 'youtube') return youtubeCard(item);
-        if (item.type === 'video') return mp4Card(item);
-        return '';
-      }).join('');
-      gallery.insertAdjacentHTML('beforeend', frags);
-      offset += slice.length;
-      loadMoreBtn.style.display = offset < list.length ? '' : 'none';
+    function renderDots() {
+      if (!SHOW_DOTS) { dotsEl.innerHTML = ''; return; }
+      const total = Math.min(current.length, 100); // cap dots visually if tons of items
+      // If >100, show sparse dots (every Nth) to avoid 500 dots
+      const step = current.length > 100 ? Math.ceil(current.length / 100) : 1;
+      let html = '';
+      for (let i = 0; i < current.length; i += step) {
+        const active = Math.floor(idx/step) === Math.floor(i/step);
+        html += `<button data-dot="${i}" class="w-2.5 h-2.5 rounded-full ${active ? 'bg-white' : 'bg-white/30'}"></button>`;
+      }
+      dotsEl.innerHTML = html;
+    }
+
+    function goTo(newIdx) {
+      // bounds / loop
+      if (LOOP) {
+        idx = (newIdx + current.length) % current.length;
+      } else {
+        idx = Math.max(0, Math.min(current.length - 1, newIdx));
+      }
+      // swap single slide
+      slideHost.innerHTML = slideHTML(current[idx]);
+      updateMeta();
+      syncButtons();
+      renderDots();
+      prefetchNeighbors();
+    }
+
+    function prefetchNeighbors() {
+      const left = current[idx - 1];
+      const right = current[idx + 1];
+      [left, right].forEach(it => {
+        if (it && it.type === 'image') {
+          const im = new Image();
+          im.src = driveUrlSized(it.driveId, 1500); // warm cache
+        }
+      });
     }
 
     function applyFilter(filter) {
-      current = master.filter(x => matchesFilter(filter, x.type));
-      gallery.innerHTML = '';
-      offset = 0;
-      renderBatch(current);
+      const match = (t) => filter === 'all' ? true : (filter === 'video' ? (t === 'video' || t === 'youtube') : t === filter);
+      current = master.filter(x => match(x.type));
+      if (!current.length) {
+        slideHost.innerHTML = '<div class="p-8 text-center text-white/60">No items in this view.</div>';
+        metaEl.textContent = '';
+        actionsEl.innerHTML = '';
+        dotsEl.innerHTML = '';
+        prevBtn.disabled = nextBtn.disabled = true;
+        return;
+      }
+      idx = 0;
+      goTo(0);
     }
 
+    // Events
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
     });
-    loadMoreBtn.addEventListener('click', () => renderBatch(current));
+    prevBtn.addEventListener('click', () => goTo(idx - 1));
+    nextBtn.addEventListener('click', () => goTo(idx + 1));
 
-    // --- Lightbox behavior (scrollable) ---
-    gallery.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-lightbox]');
-      if (!btn) return;
-      const kind = btn.getAttribute('data-lightbox');
-      lightboxContent.innerHTML = '';
-
-      if (kind === 'image') {
-        const id = btn.getAttribute('data-id');
-        const title = btn.getAttribute('data-title') || '';
-        const large = driveUrlSized(id, 2000);
-        lightboxContent.innerHTML = `<img src="${large}" alt="${title}" class="w-full h-auto rounded-xl" />`;
-      }
-      if (kind === 'youtube') {
-        const vid = btn.getAttribute('data-id');
-        const title = btn.getAttribute('data-title') || '';
-        lightboxContent.innerHTML = `
-          <div class="relative w-full" style="padding-top: 56.25%">
-            <iframe class="absolute inset-0 w-full h-full rounded-xl"
-              src="https://www.youtube.com/embed/${vid}?autoplay=1"
-              title="${title}"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowfullscreen></iframe>
-          </div>`;
-      }
-      if (kind === 'video') {
-        const src = btn.getAttribute('data-src');
-        const title = btn.getAttribute('data-title') || '';
-        lightboxContent.innerHTML = `<video src="${src}" class="w-full h-auto rounded-xl" controls autoplay playsinline></video>`;
-      }
-
-      lightbox.classList.remove('hidden'); // overlay is scrollable; no need to add 'flex'
+    // Dots jump
+    dotsEl.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-dot]');
+      if (!b) return;
+      const jump = parseInt(b.getAttribute('data-dot'), 10);
+      if (Number.isFinite(jump)) goTo(jump);
     });
 
-    closeBtn.addEventListener('click', () => {
-      lightbox.classList.add('hidden');
-      lightboxContent.innerHTML = '';
+    // Keys + swipe
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft')  goTo(idx - 1);
+      if (e.key === 'ArrowRight') goTo(idx + 1);
     });
-    lightbox.addEventListener('click', (e) => {
-      if (e.target === lightbox) closeBtn.click();
-    });
+    slideHost.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].clientX; }, {passive:true});
+    slideHost.addEventListener('touchend', (e) => {
+      if (touchStartX == null) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(dx) > 40) (dx > 0 ? goTo(idx - 1) : goTo(idx + 1));
+      touchStartX = null;
+    }, {passive:true});
 
     // Footer year
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    // Kick off: load manifest, then render first page
+    // Start
     (async () => {
       try {
-        master = await loadManifest();
-        applyFilter('all');
-      } catch (e) {
-        console.error('Failed to load manifest:', e);
-        master = [];
-        applyFilter('all');
+        master = await loadJSON('data/artworks.json');
+        applyFilter('all');  // default view
+      } catch (err) {
+        console.error(err);
+        slideHost.innerHTML = '<div class="p-8 text-center text-white/60">Could not load data/artworks.json</div>';
       }
     })();
   </script>
