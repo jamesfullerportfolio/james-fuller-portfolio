@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Artist Portfolio</title>
+  <meta name="description" content="A clean, lightweight portfolio to showcase images and videos for free on GitHub Pages." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --bg: #0b0b0c; --fg: #f5f7fa; }
+    html { background: var(--bg); color: var(--fg); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .masonry { column-count: 1; column-gap: 1rem; }
+    @media (min-width: 640px) { .masonry { column-count: 2; } }
+    @media (min-width: 1024px) { .masonry { column-count: 3; } }
+    .brick { break-inside: avoid; margin-bottom: 1rem; }
+  </style>
+</head>
+<body class="bg-[var(--bg)] text-[var(--fg)] selection:bg-white/20">
+  <header class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+      <div>
+        <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">Artist Name</h1>
+        <p class="text-sm sm:text-base text-white/70 mt-2">Location · Mediums · Contact: <a class="underline hover:opacity-80" href="mailto:artist@example.com">artist@example.com</a></p>
+      </div>
+      <nav class="flex gap-2 flex-wrap">
+        <button data-filter="all" class="filter-btn px-3 py-1.5 rounded-2xl bg-white/10 hover:bg-white/20 text-sm">All</button>
+        <button data-filter="image" class="filter-btn px-3 py-1.5 rounded-2xl bg-white/10 hover:bg-white/20 text-sm">Images</button>
+        <button data-filter="video" class="filter-btn px-3 py-1.5 rounded-2xl bg-white/10 hover:bg-white/20 text-sm">Videos</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
+    <!-- Artworks pulled from Google Drive / YouTube -->
+    <script>
+      // To embed Google Drive images:
+      // 1. Upload your image to Google Drive.
+      // 2. Right-click → Get Link → Anyone with link can view.
+      // 3. Copy the FILE_ID from the share URL:
+      //    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+      // 4. Use this format for src: https://drive.google.com/uc?export=view&id=FILE_ID
+
+      // Helper to use Google Drive-hosted images
+      const driveUrl = (id) => `https://drive.google.com/uc?export=view&id=${id}`;
+      const driveDownloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
+
+      // Fill this with either local assets (src) OR Google Drive file IDs (driveId).
+      // Tip: Put WEB-OPTIMIZED images in Drive (1500–2000px, .webp or .jpg), set to "Anyone with the link → Viewer".
+      const artworks = [
+        // DRIVE-Hosted IMAGES (recommended):
+        { type: 'image', driveId: 'YOUR_DRIVE_FILE_ID_1', title: 'Artwork 1', alt: 'Describe the piece', fullresId: 'OPTIONAL_FULLRES_ID' },
+        { type: 'image', driveId: 'YOUR_DRIVE_FILE_ID_2', title: 'Artwork 2', alt: 'Describe the piece' },
+
+        // (Optional) LOCAL IMAGES in this repo (if you add an /assets folder):
+        // { type: 'image', src: 'assets/sample1.jpg', title: 'Local Asset Example' },
+
+        // YOUTUBE VIDEOS (unlisted is fine):
+        { type: 'youtube', id: 'dQw4w9WgXcQ', title: 'Process Reel' },
+
+        // Avoid hosting big MP4s directly; use YouTube instead.
+        // { type: 'video', src: 'assets/short_clip.mp4', title: 'Short Clip (local, small only)' },
+      ];
+    </script>
+
+    <div id="gallery" class="masonry"></div>
+
+    <!-- Lightbox Modal -->
+    <div id="lightbox" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
+      <button id="closeLightbox" class="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20">Close</button>
+      <div id="lightboxContent" class="w-full max-w-5xl"></div>
+    </div>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-4 sm:px-6 pb-10 text-xs text-white/50">
+    <p>© <span id="year"></span> Artist Name. All rights reserved. Built with a free GitHub Pages template.</p>
+  </footer>
+
+  <script>
+    const gallery = document.getElementById('gallery');
+
+    function cardWrapper(inner) {
+      return `\n<div class=\"brick\">\n  <div class=\"group relative rounded-2xl overflow-hidden shadow-2xl shadow-black/30 bg-white/5 border border-white/10\">\n    ${inner}\n    <div class=\"absolute inset-0 ring-1 ring-white/10 pointer-events-none rounded-2xl\"></div>\n  </div>\n</div>`;
+    }
+
+    function imageCard(item) {
+      const src = item.driveId ? driveUrl(item.driveId) : item.src;
+      const downloadBtn = item.fullresId ? `<a href="${driveDownloadUrl(item.fullresId)}" class=\"inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2\" target=\"_blank\" rel=\"noopener\">Download full-res</a>` : '';
+      const caption = item.title ? `<div class=\"p-3 text-sm text-white/80 flex items-center\">${item.title}${downloadBtn}</div>` : (downloadBtn ? `<div class=\"p-3\">${downloadBtn}</div>` : '');
+      return cardWrapper(`
+        <button class="block w-full text-left" data-lightbox="image" data-src="${src}" data-title="${item.title||''}">
+          <img src="${src}" alt="${item.alt||item.title||'Artwork'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
+        </button>
+        ${caption}
+      `);
+    }</div>` : '';
+      return cardWrapper(`
+        <button class="block w-full text-left" data-lightbox="image" data-src="${item.src}" data-title="${item.title||''}">
+          <img src="${item.src}" alt="${item.alt||item.title||'Artwork'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
+        </button>
+        ${caption}
+      `);
+    }
+
+    function youtubeCard(item) {
+      const thumb = `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`;
+      const caption = item.title ? `<div class=\"p-3 text-sm text-white/80\">${item.title}</div>` : '';
+      return cardWrapper(`
+        <button class="block w-full text-left" data-lightbox="youtube" data-id="${item.id}" data-title="${item.title||''}">
+          <img src="${thumb}" alt="${item.title||'Video'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
+          <span class="absolute inset-0 grid place-items-center">
+            <span class="inline-flex items-center justify-center rounded-full w-14 h-14 bg-black/60 backdrop-blur">▶</span>
+          </span>
+        </button>
+        ${caption}
+      `);
+    }
+
+    function mp4Card(item) {
+      const caption = item.title ? `<div class=\"p-3 text-sm text-white/80\">${item.title}</div>` : '';
+      return cardWrapper(`
+        <button class="block w-full text-left" data-lightbox="video" data-src="${item.src}" data-title="${item.title||''}">
+          <video src="${item.src}#t=0.1" class="w-full h-auto block" muted playsinline></video>
+        </button>
+        ${caption}
+      `);
+    }
+
+    const frags = artworks.map(item => {
+      if (item.type === 'image') return imageCard(item);
+      if (item.type === 'youtube') return youtubeCard(item);
+      if (item.type === 'video') return mp4Card(item);
+      return '';
+    }).join('');
+
+    gallery.innerHTML = frags;
+
+    const lightbox = document.getElementById('lightbox');
+    const lightboxContent = document.getElementById('lightboxContent');
+    const closeBtn = document.getElementById('closeLightbox');
+
+    gallery.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-lightbox]');
+      if (!btn) return;
+      const kind = btn.getAttribute('data-lightbox');
+      lightboxContent.innerHTML = '';
+      if (kind === 'image') {
+        const src = btn.getAttribute('data-src');
+        const title = btn.getAttribute('data-title')||'';
+        lightboxContent.innerHTML = `<img src="${src}" alt="${title}" class="w-full h-auto rounded-xl" />`;
+      }
+      if (kind === 'youtube') {
+        const id = btn.getAttribute('data-id');
+        const title = btn.getAttribute('data-title')||'';
+        lightboxContent.innerHTML = `
+          <div class="relative w-full" style="padding-top: 56.25%">
+            <iframe class="absolute inset-0 w-full h-full rounded-xl" src="https://www.youtube.com/embed/${id}?autoplay=1" title="${title}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          </div>`;
+      }
+      if (kind === 'video') {
+        const src = btn.getAttribute('data-src');
+        const title = btn.getAttribute('data-title')||'';
+        lightboxContent.innerHTML = `<video src="${src}" class="w-full h-auto rounded-xl" controls autoplay playsinline></video>`;
+      }
+      lightbox.classList.remove('hidden');
+      lightbox.classList.add('flex');
+    });
+
+    closeBtn.addEventListener('click', () => {
+      lightbox.classList.add('hidden');
+      lightbox.classList.remove('flex');
+      lightboxContent.innerHTML = '';
+    });
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) closeBtn.click();
+    });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const filter = btn.dataset.filter;
+        const children = Array.from(gallery.children);
+        children.forEach((el, i) => {
+          const t = artworks[i].type;
+          el.style.display = (filter === 'all' || t === filter) ? '' : 'none';
+        });
+      });
+    });
+
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+
+  <!-- HOW TO USE (delete this block once you’re set up):
+
+SETUP OVERVIEW (GitHub Pages + Google Drive)
+===========================================
+- **GitHub Pages** will host your static site code (this index.html and supporting files). Free and fast.
+- **Google Drive** will host your actual artwork files (web-optimized images and optional full-res originals). Drive IDs are referenced inside the artworks[] list in this file.
+- **YouTube** (recommended) will host videos; embed unlisted video IDs here.
+
+STEP 1: PREP YOUR FILES
+-----------------------
+1. Separate your ~13GB of art into two sets:
+   - **Web Optimized** (1500–2000px wide, JPG or WebP, ~300KB–1MB each). These load quickly on the site.
+   - **Full Resolution Originals** (HEIC, PNG, large JPG, etc.). Keep these intact for optional downloads.
+2. Recommended: Use tools like XnConvert, ImageMagick, or Preview/IrfanView to batch convert HEIC/PNG → JPG/WebP and resize.
+
+STEP 2: ORGANIZE GOOGLE DRIVE
+-----------------------------
+Create a folder structure like:
+Artist Portfolio/
+├── Web Optimized/
+│   ├── painting1_web.jpg
+│   ├── piece2_web.jpg
+│   └── ...
+├── Full Resolution Originals/
+│   ├── painting1_original.heic
+│   ├── piece2_original.png
+│   └── ...
+└── Videos/
+    └── timelapse1.mp4
+
+- Set **sharing**: Right-click → Share → Anyone with the link → Viewer.
+- Copy the file ID from a URL like https://drive.google.com/file/d/FILE_ID/view.
+
+STEP 3: UPDATE artworks[] IN THIS FILE
+--------------------------------------
+Use this format for each item:
+{ type: 'image', driveId: 'WEB_FILE_ID', title: 'Title', alt: 'Description', fullresId: 'ORIGINAL_FILE_ID' }
+
+- `driveId` = web-optimized version (fast display).
+- `fullresId` = optional original (adds a “Download full-res” button).
+- For YouTube videos:
+{ type: 'youtube', id: 'VIDEO_ID', title: 'Video Title' }
+
+STEP 4: HOST THE SITE ON GITHUB PAGES
+-------------------------------------
+1. Create a GitHub repo (public).
+2. Add this index.html file to the repo.
+3. Commit and push.
+4. In repo → Settings → Pages → Source: Deploy from branch → main / root.
+5. After 1–2 minutes, your site is live at https://USERNAME.github.io/REPO/.
+6. Optional: connect a custom domain via GitHub Pages (CNAME + DNS record).
+
+NOTES
+-----
+- Do NOT upload all 13GB into GitHub. Only keep this HTML and small assets (like CSS/JS). Use Google Drive links for images.
+- Resize large artwork; otherwise site will be slow. Visitors can always download the full-res originals from Drive.
+- For video, prefer YouTube unlisted links for smooth streaming. Keep Drive as backup storage.
+
+-->
+</body>
+</html>
