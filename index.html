@@ -5,10 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>James Fuller Portfolio</title>
   <meta name="description" content="A clean, lightweight portfolio to showcase images and videos." />
+
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind (CDN for now; swap to compiled styles.css later) -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Favicon (prevents 404) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎨</text></svg>">
+
   <style>
     :root { --bg: #0b0b0c; --fg: #f5f7fa; }
     html { background: var(--bg); color: var(--fg); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
@@ -23,7 +31,10 @@
     <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
       <div>
         <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">James Fuller</h1>
-        <p class="text-sm sm:text-base text-white/70 mt-2">Location · Mediums · Contact: <a class="underline hover:opacity-80" href="mailto:jamesfullerportfolio@gmail.com">jamesfullerportfolio@gmail.com</a></p>
+        <p class="text-sm sm:text-base text-white/70 mt-2">
+          Location · Mediums · Contact:
+          <a class="underline hover:opacity-80" href="mailto:jamesfullerportfolio@gmail.com">jamesfullerportfolio@gmail.com</a>
+        </p>
       </div>
       <nav class="flex gap-2 flex-wrap">
         <button data-filter="all" class="filter-btn px-3 py-1.5 rounded-2xl bg-white/10 hover:bg-white/20 text-sm">All</button>
@@ -34,34 +45,27 @@
   </header>
 
   <main class="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
-    <!-- Artworks pulled from Google Drive / YouTube -->
+    <!-- Helpers + DATA -->
     <script>
-      // To embed Google Drive images:
-      // 1. Upload your image to Google Drive.
-      // 2. Right-click → Get Link → Anyone with link can view.
-      // 3. Copy the FILE_ID from the share URL:
-      //    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
-      // 4. Use this format for src: https://drive.google.com/uc?export=view&id=FILE_ID
-
-      // Helper to use Google Drive-hosted images
-      const driveUrl = (id) => `https://drive.google.com/uc?export=view&id=${id}`;
+      // Reliable Google Drive image endpoint (acts like an image CDN, supports sizing)
       const driveUrl = (id) => `https://lh3.googleusercontent.com/d/${id}=w2000`;
+      // Download URL for full-resolution originals (optional)
+      const driveDownloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
 
-      // Fill this with either local assets (src) OR Google Drive file IDs (driveId).
-      // Tip: Put WEB-OPTIMIZED images in Drive (1500–2000px, .webp or .jpg), set to "Anyone with the link → Viewer".
+      // Add your artworks here. Use web-optimized Drive file IDs for driveId.
+      // Optionally add fullresId with the original's ID to show a "Download full-res" button.
       const artworks = [
-        // DRIVE-Hosted IMAGES (recommended):
-        { type: 'image', driveId: '1Tpi8bcAFylpFEyfMTBiaYIM-Y8OT1ozy', title: 'Gander’spatch XElectric Armchair', alt: 'Album cover', fullresId: 'FULLRES_ID' },
-        { type: 'image', driveId: 'YOUR_DRIVE_FILE_ID_2', title: 'Artwork 2', alt: 'Describe the piece' },
-
-        // (Optional) LOCAL IMAGES in this repo (if you add an /assets folder):
-        // { type: 'image', src: 'assets/sample1.jpg', title: 'Local Asset Example' },
-
-        // YOUTUBE VIDEOS (unlisted is fine):
-        { type: 'youtube', id: 'dQw4w9WgXcQ', title: 'Process Reel' },
-
-        // Avoid hosting big MP4s directly; use YouTube instead.
-        // { type: 'video', src: 'assets/short_clip.mp4', title: 'Short Clip (local, small only)' },
+        {
+          type: 'image',
+          driveId: '1Tpi8bcAFylpFEyfMTBiaYIM-Y8OT1ozy', // web-friendly image ID
+          title: "Gander’spatch XElectric Armchair",
+          alt: 'Album cover'
+          // fullresId: 'FULLRES_ID' // optional original file ID
+        },
+        // Add more items...
+        // { type: 'image', driveId: 'YOUR_DRIVE_FILE_ID_2', title: 'Artwork 2', alt: 'Describe the piece' },
+        // { type: 'youtube', id: 'YOUTUBE_VIDEO_ID', title: 'Process Reel' },
+        // { type: 'video', src: 'assets/clip.mp4', title: 'Short Clip (local, small only)' },
       ];
     </script>
 
@@ -78,33 +82,40 @@
     <p>© <span id="year"></span> James Fuller. All rights reserved.</p>
   </footer>
 
+  <!-- RENDER -->
   <script>
     const gallery = document.getElementById('gallery');
 
     function cardWrapper(inner) {
-      return `\n<div class=\"brick\">\n  <div class=\"group relative rounded-2xl overflow-hidden shadow-2xl shadow-black/30 bg-white/5 border border-white/10\">\n    ${inner}\n    <div class=\"absolute inset-0 ring-1 ring-white/10 pointer-events-none rounded-2xl\"></div>\n  </div>\n</div>`;
+      return `
+<div class="brick">
+  <div class="group relative rounded-2xl overflow-hidden shadow-2xl shadow-black/30 bg-white/5 border border-white/10">
+    ${inner}
+    <div class="absolute inset-0 ring-1 ring-white/10 pointer-events-none rounded-2xl"></div>
+  </div>
+</div>`;
     }
 
     function imageCard(item) {
-  const src = item.driveId ? driveUrl(item.driveId) : item.src;
-  const downloadBtn = item.fullresId
-    ? `<a href="${driveDownloadUrl(item.fullresId)}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>`
-    : '';
-  const caption = item.title
-    ? `<div class="p-3 text-sm text-white/80 flex items-center">${item.title}${downloadBtn}</div>`
-    : (downloadBtn ? `<div class="p-3">${downloadBtn}</div>` : '');
+      const src = item.driveId ? driveUrl(item.driveId) : item.src;
+      const downloadBtn = item.fullresId
+        ? `<a href="${driveDownloadUrl(item.fullresId)}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>`
+        : '';
+      const caption = item.title
+        ? `<div class="p-3 text-sm text-white/80 flex items-center">${item.title}${downloadBtn}</div>`
+        : (downloadBtn ? `<div class="p-3">${downloadBtn}</div>` : '');
 
-  return cardWrapper(`
-    <button class="block w-full text-left" data-lightbox="image" data-src="${src}" data-title="${item.title||''}">
-      <img src="${src}" alt="${item.alt||item.title||'Artwork'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
-    </button>
-    ${caption}
-  `);
-}
+      return cardWrapper(`
+        <button class="block w-full text-left" data-lightbox="image" data-src="${src}" data-title="${item.title||''}">
+          <img src="${src}" alt="${item.alt||item.title||'Artwork'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
+        </button>
+        ${caption}
+      `);
+    }
 
     function youtubeCard(item) {
       const thumb = `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`;
-      const caption = item.title ? `<div class=\"p-3 text-sm text-white/80\">${item.title}</div>` : '';
+      const caption = item.title ? `<div class="p-3 text-sm text-white/80">${item.title}</div>` : '';
       return cardWrapper(`
         <button class="block w-full text-left" data-lightbox="youtube" data-id="${item.id}" data-title="${item.title||''}">
           <img src="${thumb}" alt="${item.title||'Video'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
@@ -117,7 +128,7 @@
     }
 
     function mp4Card(item) {
-      const caption = item.title ? `<div class=\"p-3 text-sm text-white/80\">${item.title}</div>` : '';
+      const caption = item.title ? `<div class="p-3 text-sm text-white/80">${item.title}</div>` : '';
       return cardWrapper(`
         <button class="block w-full text-left" data-lightbox="video" data-src="${item.src}" data-title="${item.title||''}">
           <video src="${item.src}#t=0.1" class="w-full h-auto block" muted playsinline></video>
@@ -126,15 +137,16 @@
       `);
     }
 
+    // Build gallery
     const frags = artworks.map(item => {
       if (item.type === 'image') return imageCard(item);
       if (item.type === 'youtube') return youtubeCard(item);
       if (item.type === 'video') return mp4Card(item);
       return '';
     }).join('');
-
     gallery.innerHTML = frags;
 
+    // Lightbox behavior
     const lightbox = document.getElementById('lightbox');
     const lightboxContent = document.getElementById('lightboxContent');
     const closeBtn = document.getElementById('closeLightbox');
@@ -175,6 +187,7 @@
       if (e.target === lightbox) closeBtn.click();
     });
 
+    // Filters
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const filter = btn.dataset.filter;
@@ -186,67 +199,8 @@
       });
     });
 
+    // Footer year
     document.getElementById('year').textContent = new Date().getFullYear();
   </script>
-
-  <!-- HOW TO USE (delete this block once you’re set up):
-
-SETUP OVERVIEW (GitHub Pages + Google Drive)
-===========================================
-- **GitHub Pages** will host your static site code (this index.html and supporting files). Free and fast.
-- **Google Drive** will host your actual artwork files (web-optimized images and optional full-res originals). Drive IDs are referenced inside the artworks[] list in this file.
-- **YouTube** (recommended) will host videos; embed unlisted video IDs here.
-
-STEP 1: PREP YOUR FILES
------------------------
-1. Separate your ~13GB of art into two sets:
-   - **Web Optimized** (1500–2000px wide, JPG or WebP, ~300KB–1MB each). These load quickly on the site.
-   - **Full Resolution Originals** (HEIC, PNG, large JPG, etc.). Keep these intact for optional downloads.
-2. Recommended: Use tools like XnConvert, ImageMagick, or Preview/IrfanView to batch convert HEIC/PNG → JPG/WebP and resize.
-
-STEP 2: ORGANIZE GOOGLE DRIVE
------------------------------
-Create a folder structure like:
-Artist Portfolio/
-├── Web Optimized/
-│   ├── painting1_web.jpg
-│   ├── piece2_web.jpg
-│   └── ...
-├── Full Resolution Originals/
-│   ├── painting1_original.heic
-│   ├── piece2_original.png
-│   └── ...
-└── Videos/
-    └── timelapse1.mp4
-
-- Set **sharing**: Right-click → Share → Anyone with the link → Viewer.
-- Copy the file ID from a URL like https://drive.google.com/file/d/FILE_ID/view.
-
-STEP 3: UPDATE artworks[] IN THIS FILE
---------------------------------------
-Use this format for each item:
-{ type: 'image', driveId: 'WEB_FILE_ID', title: 'Title', alt: 'Description', fullresId: 'ORIGINAL_FILE_ID' }
-
-- `driveId` = web-optimized version (fast display).
-- `fullresId` = optional original (adds a “Download full-res” button).
-- For YouTube videos:
-{ type: 'youtube', id: 'VIDEO_ID', title: 'Video Title' }
-
-STEP 4: HOST THE SITE ON GITHUB PAGES
--------------------------------------
-1. Create a GitHub repo (public).
-2. Add this index.html file to the repo.
-3. Commit and push.
-4. In repo → Settings → Pages → Source: Deploy from branch → main / root.
-5. After 1–2 minutes, your site is live at https://USERNAME.github.io/REPO/.
-6. Optional: connect a custom domain via GitHub Pages (CNAME + DNS record).
-
-NOTES
------
-- Do NOT upload all 13GB into GitHub. Only keep this HTML and small assets (like CSS/JS). Use Google Drive links for images.
-- Resize large artwork; otherwise site will be slow. Visitors can always download the full-res originals from Drive.
-- For video, prefer YouTube unlisted links for smooth streaming. Keep Drive as backup storage.
-
--->
 </body>
 </html>
