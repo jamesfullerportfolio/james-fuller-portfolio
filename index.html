@@ -45,7 +45,7 @@
 
       // Helper to use Google Drive-hosted images
       const driveUrl = (id) => `https://drive.google.com/uc?export=view&id=${id}`;
-      const driveDownloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
+      const driveUrl = (id) => `https://lh3.googleusercontent.com/d/${id}=w2000`;
 
       // Fill this with either local assets (src) OR Google Drive file IDs (driveId).
       // Tip: Put WEB-OPTIMIZED images in Drive (1500–2000px, .webp or .jpg), set to "Anyone with the link → Viewer".
@@ -88,23 +88,21 @@
     }
 
     function imageCard(item) {
-      const src = item.driveId ? driveUrl(item.driveId) : item.src;
-      const downloadBtn = item.fullresId ? `<a href="${driveDownloadUrl(item.fullresId)}" class=\"inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2\" target=\"_blank\" rel=\"noopener\">Download full-res</a>` : '';
-      const caption = item.title ? `<div class=\"p-3 text-sm text-white/80 flex items-center\">${item.title}${downloadBtn}</div>` : (downloadBtn ? `<div class=\"p-3\">${downloadBtn}</div>` : '');
-      return cardWrapper(`
-        <button class="block w-full text-left" data-lightbox="image" data-src="${src}" data-title="${item.title||''}">
-          <img src="${src}" alt="${item.alt||item.title||'Artwork'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
-        </button>
-        ${caption}
-      `);
-    }</div>` : '';
-      return cardWrapper(`
-        <button class="block w-full text-left" data-lightbox="image" data-src="${item.src}" data-title="${item.title||''}">
-          <img src="${item.src}" alt="${item.alt||item.title||'Artwork'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
-        </button>
-        ${caption}
-      `);
-    }
+  const src = item.driveId ? driveUrl(item.driveId) : item.src;
+  const downloadBtn = item.fullresId
+    ? `<a href="${driveDownloadUrl(item.fullresId)}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>`
+    : '';
+  const caption = item.title
+    ? `<div class="p-3 text-sm text-white/80 flex items-center">${item.title}${downloadBtn}</div>`
+    : (downloadBtn ? `<div class="p-3">${downloadBtn}</div>` : '');
+
+  return cardWrapper(`
+    <button class="block w-full text-left" data-lightbox="image" data-src="${src}" data-title="${item.title||''}">
+      <img src="${src}" alt="${item.alt||item.title||'Artwork'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
+    </button>
+    ${caption}
+  `);
+}
 
     function youtubeCard(item) {
       const thumb = `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`;
