@@ -47,20 +47,18 @@
   <main class="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
     <!-- Helpers + DATA -->
     <script>
-      // Reliable Google Drive image endpoint (acts like an image CDN, supports sizing)
-      const driveUrl = (id) => `https://lh3.googleusercontent.com/d/${id}=w2000`;
-      // Download URL for full-resolution originals (optional)
+      // Sized image helper (thumbs + lightbox from the same Drive file ID)
+      const driveUrlSized = (id, w) => `https://lh3.googleusercontent.com/d/${id}=w${w}`;
+      // Original download link (uses same ID)
       const driveDownloadUrl = (id) => `https://drive.google.com/uc?export=download&id=${id}`;
 
-      // Add your artworks here. Use web-optimized Drive file IDs for driveId.
-      // Optionally add fullresId with the original's ID to show a "Download full-res" button.
+      // Only driveId is needed now. A Download button will show for every Drive image automatically.
       const artworks = [
-        { type: 'image', driveId: '1Tpi8bcAFylpFEyfMTBiaYIM-Y8OT1ozy', title: "Gander’spatch XElectric Armchair", alt: 'Album cover', fullresId: 'FULLRES_ID'},
-        { type: 'image', driveId: '1vCjOO0ywYTuEX63CnEl3tXzZ0_P_q6qL', title: "ect", alt: 'Album cover', fullresId: 'FULLRES_ID'},
-        { type: 'image', driveId: '11vG5yWv666muidxNvbUvT4VEA2e7Rqk5', title: "ect", alt: 'Album cover', fullresId: 'FULLRES_ID'},
-        { type: 'image', driveId: '1fzXNwzKak2D8niqxecj1OXm63jgHcbvB', title: "ect", alt: 'Album cover', fullresId: 'FULLRES_ID'},
-        // Add more items...
-        // { type: 'image', driveId: 'YOUR_DRIVE_FILE_ID_2', title: 'Artwork 2', alt: 'Describe the piece' },
+        { type: 'image', driveId: '1Tpi8bcAFylpFEyfMTBiaYIM-Y8OT1ozy', title: "Gander’spatch XElectric Armchair", alt: 'Album cover' },
+        { type: 'image', driveId: '1vCjOO0ywYTuEX63CnEl3tXzZ0_P_q6qL', title: "ect", alt: 'Album cover' },
+        { type: 'image', driveId: '11vG5yWv666muidxNvbUvT4VEA2e7Rqk5', title: "ect", alt: 'Album cover' },
+        { type: 'image', driveId: '1fzXNwzKak2D8niqxecj1OXm63jgHcbvB', title: "ect", alt: 'Album cover' },
+        // Examples:
         // { type: 'youtube', id: 'YOUTUBE_VIDEO_ID', title: 'Process Reel' },
         // { type: 'video', src: 'assets/clip.mp4', title: 'Short Clip (local, small only)' },
       ];
@@ -94,17 +92,40 @@
     }
 
     function imageCard(item) {
-      const src = item.driveId ? driveUrl(item.driveId) : item.src;
-      const downloadBtn = item.fullresId
-        ? `<a href="${driveDownloadUrl(item.fullresId)}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>`
+      const hasDrive = Boolean(item.driveId);
+      const id = item.driveId;
+
+      // Responsive thumbnails in grid
+      const src = hasDrive ? driveUrlSized(id, 800) : item.src;
+      const srcset = hasDrive
+        ? [
+            `${driveUrlSized(id, 800)} 800w`,
+            `${driveUrlSized(id, 1200)} 1200w`,
+            `${driveUrlSized(id, 1600)} 1600w`
+          ].join(', ')
         : '';
+      const sizes = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw';
+
+      // Always show download for Drive images
+      const downloadBtn = hasDrive
+        ? `<a href="${driveDownloadUrl(id)}" class="inline-block text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 ml-2" target="_blank" rel="noopener">Download full-res</a>`
+        : '';
+
       const caption = item.title
         ? `<div class="p-3 text-sm text-white/80 flex items-center">${item.title}${downloadBtn}</div>`
         : (downloadBtn ? `<div class="p-3">${downloadBtn}</div>` : '');
 
+      // Store ID for lightbox; fallback to src if local
+      const lbData = hasDrive ? `data-id="${id}"` : `data-src="${item.src}"`;
+
       return cardWrapper(`
-        <button class="block w-full text-left" data-lightbox="image" data-src="${src}" data-title="${item.title||''}">
-          <img src="${src}" alt="${item.alt||item.title||'Artwork'}" loading="lazy" class="w-full h-auto block group-hover:opacity-90 transition" />
+        <button class="block w-full text-left" data-lightbox="image" ${lbData} data-title="${item.title||''}">
+          <img
+            src="${src}"
+            ${hasDrive ? `srcset="${srcset}" sizes="${sizes}"` : ''}
+            alt="${item.alt||item.title||'Artwork'}"
+            loading="lazy"
+            class="w-full h-auto block group-hover:opacity-90 transition" />
         </button>
         ${caption}
       `);
@@ -153,24 +174,40 @@
       if (!btn) return;
       const kind = btn.getAttribute('data-lightbox');
       lightboxContent.innerHTML = '';
+
       if (kind === 'image') {
-        const src = btn.getAttribute('data-src');
-        const title = btn.getAttribute('data-title')||'';
-        lightboxContent.innerHTML = `<img src="${src}" alt="${title}" class="w-full h-auto rounded-xl" />`;
-      }
-      if (kind === 'youtube') {
         const id = btn.getAttribute('data-id');
-        const title = btn.getAttribute('data-title')||'';
+        const title = btn.getAttribute('data-title') || '';
+
+        if (id) {
+          // Larger image inside modal
+          const large = driveUrlSized(id, 2000);
+          lightboxContent.innerHTML = `<img src="${large}" alt="${title}" class="w-full h-auto rounded-xl" />`;
+        } else {
+          const src = btn.getAttribute('data-src');
+          lightboxContent.innerHTML = `<img src="${src}" alt="${title}" class="w-full h-auto rounded-xl" />`;
+        }
+      }
+
+      if (kind === 'youtube') {
+        const vid = btn.getAttribute('data-id');
+        const title = btn.getAttribute('data-title') || '';
         lightboxContent.innerHTML = `
           <div class="relative w-full" style="padding-top: 56.25%">
-            <iframe class="absolute inset-0 w-full h-full rounded-xl" src="https://www.youtube.com/embed/${id}?autoplay=1" title="${title}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            <iframe class="absolute inset-0 w-full h-full rounded-xl"
+              src="https://www.youtube.com/embed/${vid}?autoplay=1"
+              title="${title}"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen></iframe>
           </div>`;
       }
+
       if (kind === 'video') {
         const src = btn.getAttribute('data-src');
-        const title = btn.getAttribute('data-title')||'';
+        const title = btn.getAttribute('data-title') || '';
         lightboxContent.innerHTML = `<video src="${src}" class="w-full h-auto rounded-xl" controls autoplay playsinline></video>`;
       }
+
       lightbox.classList.remove('hidden');
       lightbox.classList.add('flex');
     });
