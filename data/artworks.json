@@ -2517,6 +2517,9 @@
     }
   ],
   "videos": [
-    { "youtubeId": "YSsy2-aMW14", "title": "Robopera the dubstep opera"}
+    { "youtubeId": "YSsy2-aMW14", "title": "Robopera the dubstep opera"},
+    { "youtubeId": "Uw2jenUzBtM", "title": "1"},
+    { "youtubeId": "_wLofURyN2U", "title": "2"}
+
   ]
 }
