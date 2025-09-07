@@ -1,0 +1,57 @@
+name: Build & Deploy (Pages)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# These are the only perms needed for Pages deploy
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # If you’re using Tailwind via CLI + a tiny input.css file
+      - name: Install Tailwind CLI
+        run: npm i -D tailwindcss @tailwindcss/typography
+
+      - name: Build site
+        run: |
+          mkdir -p dist
+          # Tailwind: adjust input path if yours differs
+          npx tailwindcss -i ./src/input.css -o ./dist/styles.css --minify
+          # Copy site files into dist
+          cp index.html dist/index.html
+          mkdir -p dist/data && cp -r data/* dist/data/ || true
+          # copy other assets if you have any
+          [ -d assets ] && mkdir -p dist/assets && cp -r assets/* dist/assets || true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
